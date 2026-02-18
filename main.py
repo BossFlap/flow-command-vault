@@ -25,7 +25,13 @@ ICON_STAR = "Images/icon_star.png"
 ICON_TEMPLATE = "Images/icon_template.png"
 
 VAR_PATTERN = re.compile(r"\{([a-zA-Z0-9_]+)\}")
-PYTHON_EXE = os.path.join(PLUGIN_DIR, "python_path.txt")
+
+CATEGORY_PREFIX = {
+    "Cisco":   "[C]",
+    "Linux":   "[L]",
+    "Proxmox": "[P]",
+    "Ansible": "[A]",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -96,22 +102,27 @@ def _search(query: str) -> list:
 
 
 def _format_title(row) -> str:
-    parts = [row["category"]]
-    if row["subcategory"]:
-        parts.append(row["subcategory"])
-    parts.append(row["title"])
-    fav = "\u2605 " if row["is_favorite"] else ""
-    return fav + " \u203a ".join(parts)
+    cat    = row["category"]
+    sub    = row["subcategory"] or ""
+    title  = row["title"]
+    prefix = CATEGORY_PREFIX.get(cat, f"[{cat[0].upper()}]")
+    fav    = "\u2605 " if row["is_favorite"] else ""
+    if sub:
+        return f"{fav}{prefix}  {sub}  \u203a  {title}"
+    return f"{fav}{prefix}  {title}"
 
 
 def _format_subtitle(row) -> str:
-    cmd = row["command"]
+    cmd  = row["command"].replace("\n", "  \u21b5  ")  # show newlines as ↵
     desc = row["description"] or ""
     has_vars = bool(VAR_PATTERN.search(cmd))
-    template_hint = "  [template]" if has_vars else ""
+    hints = []
+    if has_vars:
+        hints.append("\u270e template")       # ✎ template
     if desc:
-        return f"{cmd}   \u2014   {desc}{template_hint}"
-    return f"{cmd}{template_hint}"
+        hints.append(desc)
+    suffix = "   \u00b7   ".join(hints)       # ·
+    return f"{cmd}   {suffix}" if suffix else cmd
 
 
 def _set_clipboard(text: str) -> None:
@@ -238,12 +249,13 @@ class CommandVault(FlowLauncher):
         if not row:
             return []
 
-        fav_label = "Remove from favorites" if row["is_favorite"] else "Add to favorites"
+        fav_label = "\u2605  Remove from favorites" if row["is_favorite"] else "\u2606  Add to favorites"
+        cmd_preview = row["command"][:80] + ("…" if len(row["command"]) > 80 else "")
 
         return [
             {
                 "Title": "Copy command",
-                "SubTitle": row["command"],
+                "SubTitle": cmd_preview,
                 "IcoPath": ICON,
                 "JsonRPCAction": {
                     "method": "copy_command",
@@ -253,7 +265,7 @@ class CommandVault(FlowLauncher):
             },
             {
                 "Title": fav_label,
-                "SubTitle": "Toggle \u2605 favorite status",
+                "SubTitle": "Favorites appear first on empty query",
                 "IcoPath": ICON_STAR,
                 "JsonRPCAction": {
                     "method": "toggle_favorite",
@@ -262,8 +274,18 @@ class CommandVault(FlowLauncher):
                 },
             },
             {
-                "Title": "Open vault location",
-                "SubTitle": DB_PATH,
+                "Title": "\u270e  Edit in Manager",
+                "SubTitle": "Open the GUI editor for this command",
+                "IcoPath": ICON,
+                "JsonRPCAction": {
+                    "method": "open_manager",
+                    "parameters": [],
+                    "dontHideAfterAction": True,
+                },
+            },
+            {
+                "Title": "\ud83d\udcc2  Open vault folder",
+                "SubTitle": PLUGIN_DIR,
                 "IcoPath": ICON,
                 "JsonRPCAction": {
                     "method": "open_vault_folder",
