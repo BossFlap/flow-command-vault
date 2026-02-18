@@ -355,6 +355,11 @@ class CommandVault(FlowLauncher):
             return
         cmd = _expand_template(row["command"], title)
         _set_clipboard(cmd)
+        short = cmd if len(cmd) <= 60 else cmd[:57] + "\u2026"
+        try:
+            self.show_msg("\u2713  Copied!", short, ICON)
+        except Exception:
+            pass
 
     def toggle_favorite(self, cmd_id: int) -> None:
         _toggle_favorite(cmd_id)
