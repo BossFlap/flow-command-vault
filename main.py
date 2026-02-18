@@ -59,45 +59,103 @@ def _fts_ok(con: sqlite3.Connection) -> bool:
         return False
 
 
+_OPERATORS = {
+    # category
+    "cat": "category", "c": "category", "category": "category",
+    # subcategory
+    "sub": "subcategory", "s": "subcategory", "subcategory": "subcategory",
+    # tag
+    "tag": "tag", "t": "tag",
+    # favorites
+    "fav": "favorites", "f": "favorites", "favorite": "favorites", "favorites": "favorites",
+}
+
+def _parse_query(raw: str) -> tuple[str, dict]:
+    """
+    Split a raw query into plain text + operator filters.
+
+    Examples:
+        "cat:cisco vlan"      → ("vlan", {"category": "cisco"})
+        "fav: show mac"       → ("show mac", {"favorites": True})
+        "tag:ccna sub:vlan"   → ("", {"tag": "ccna", "subcategory": "vlan"})
+    """
+    filters: dict = {}
+    plain_tokens: list[str] = []
+
+    for token in raw.split():
+        if ":" in token:
+            key, _, val = token.partition(":")
+            key = key.lower().strip()
+            val = val.strip()
+            op = _OPERATORS.get(key)
+            if op == "favorites":
+                filters["favorites"] = True
+            elif op and val:
+                filters[op] = val
+            else:
+                plain_tokens.append(token)
+        else:
+            plain_tokens.append(token)
+
+    return " ".join(plain_tokens), filters
+
+
 def _search(query: str) -> list:
-    query = (query or "").strip()
+    raw = (query or "").strip()
+    plain, filters = _parse_query(raw)
+
     with _db() as con:
-        if not query:
-            # No query: show favorites first, then all (limited)
-            return con.execute(
-                "SELECT * FROM commands "
-                "ORDER BY is_favorite DESC, category ASC, subcategory ASC, title ASC "
-                "LIMIT 50"
-            ).fetchall()
+        conditions: list[str] = []
+        params: list = []
 
-        if _fts_ok(con):
-            # FTS5: tokenize safely
-            fts_q = " OR ".join(
-                f'"{t}"' for t in re.split(r"\s+", query) if t
+        # ── Operator filters ──────────────────────────────────────────────
+        if filters.get("favorites"):
+            conditions.append("is_favorite = 1")
+        if cat := filters.get("category"):
+            conditions.append("category LIKE ?")
+            params.append(f"%{cat}%")
+        if sub := filters.get("subcategory"):
+            conditions.append("subcategory LIKE ?")
+            params.append(f"%{sub}%")
+        if tag := filters.get("tag"):
+            conditions.append("tags LIKE ?")
+            params.append(f"%{tag}%")
+
+        # ── Plain text search ─────────────────────────────────────────────
+        if plain:
+            if _fts_ok(con) and not filters:
+                # FTS5 only when no operator filters (avoids JOIN complexity)
+                fts_q = " OR ".join(f'"{t}"' for t in plain.split() if t)
+                try:
+                    rows = con.execute(
+                        "SELECT c.* FROM commands_fts f "
+                        "JOIN commands c ON c.id = f.rowid "
+                        "WHERE commands_fts MATCH ? "
+                        + (("AND " + " AND ".join(conditions)) if conditions else "")
+                        + " ORDER BY c.is_favorite DESC, rank LIMIT 50",
+                        [fts_q] + params,
+                    ).fetchall()
+                    if rows:
+                        return rows
+                except sqlite3.Error:
+                    pass
+
+            # LIKE fallback
+            like = f"%{plain}%"
+            text_cond = (
+                "(title LIKE ? OR command LIKE ? OR description LIKE ? "
+                " OR tags LIKE ? OR category LIKE ? OR subcategory LIKE ?)"
             )
-            try:
-                rows = con.execute(
-                    "SELECT c.* FROM commands_fts f "
-                    "JOIN commands c ON c.id = f.rowid "
-                    "WHERE commands_fts MATCH ? "
-                    "ORDER BY c.is_favorite DESC, rank "
-                    "LIMIT 50",
-                    (fts_q,),
-                ).fetchall()
-                if rows:
-                    return rows
-            except sqlite3.Error:
-                pass  # fall through to LIKE
+            conditions.append(text_cond)
+            params += [like, like, like, like, like, like]
 
-        # Fallback: LIKE search across all relevant columns
-        like = f"%{query}%"
+        # ── Build final query ─────────────────────────────────────────────
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
         return con.execute(
-            "SELECT * FROM commands "
-            "WHERE title LIKE ? OR command LIKE ? OR description LIKE ? "
-            "   OR tags LIKE ? OR category LIKE ? OR subcategory LIKE ? "
+            f"SELECT * FROM commands {where} "
             "ORDER BY is_favorite DESC, category ASC, subcategory ASC, title ASC "
             "LIMIT 50",
-            (like, like, like, like, like, like),
+            params,
         ).fetchall()
 
 
@@ -136,39 +194,28 @@ def _set_clipboard(text: str) -> None:
     p.communicate(text.encode("utf-16-le"))
 
 
-def _prompt_variable(var_name: str, command_title: str) -> str:
-    """Show a small PowerShell InputBox for a template variable."""
-    script = (
-        "Add-Type -AssemblyName Microsoft.VisualBasic; "
-        f'[Microsoft.VisualBasic.Interaction]::InputBox('
-        f'"Enter value for: {var_name}", '
-        f'"Command Vault \u2014 {command_title}", "")'
-    )
-    try:
-        result = subprocess.check_output(
-            ["powershell", "-NoProfile", "-Command", script],
-            text=True,
-            stderr=subprocess.DEVNULL,
-        )
-        return result.strip()
-    except subprocess.CalledProcessError:
-        return ""
-
-
 def _expand_template(command: str, title: str) -> str:
-    """Replace {var} placeholders interactively."""
-    vars_found = VAR_PATTERN.findall(command)
-    if not vars_found:
+    """Show a proper tkinter dialog to fill in {variable} placeholders."""
+    if not VAR_PATTERN.search(command):
         return command
 
-    seen: dict[str, str] = {}
-    for var in vars_found:
-        if var not in seen:
-            seen[var] = _prompt_variable(var, title)
+    import sys
+    import json as _json
 
-    for k, v in seen.items():
-        command = command.replace("{" + k + "}", v)
-    return command
+    dialog = os.path.join(PLUGIN_DIR, "template_dialog.py")
+    payload = _json.dumps({"command": command, "title": title})
+
+    try:
+        result = subprocess.run(
+            [sys.executable, dialog, payload],
+            capture_output=True, text=True, timeout=120,
+        )
+        if result.returncode == 0 and result.stdout:
+            return result.stdout
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+
+    return command  # fallback: return unchanged if dialog was cancelled
 
 
 def _toggle_favorite(cmd_id: int) -> None:
@@ -209,7 +256,9 @@ class CommandVault(FlowLauncher):
             return [
                 {
                     "Title": "No commands found",
-                    "SubTitle": "cv [keyword]  —  empty shows favorites  |  cv :manage opens GUI editor",
+                    "SubTitle": (
+                        "cv [text]  ·  cat:cisco  ·  sub:vlan  ·  tag:ccna  ·  fav:  ·  :manage"
+                    ),
                     "IcoPath": ICON,
                     "JsonRPCAction": {
                         "method": "noop",
