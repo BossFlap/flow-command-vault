@@ -1,0 +1,120 @@
+# Command Vault
+
+A [Flow Launcher](https://www.flowlauncher.com/) plugin that works like a 1Password-style command launcher.
+
+Press your hotkey, type a keyword, and instantly find and copy commands for Cisco IOS, Linux, Proxmox, and Ansible — with full-text search, favorites, template variable support, and a built-in GUI manager.
+
+## Features
+
+- **Structured library** — commands organized by category and subcategory (Cisco › VLAN, Linux › SSH, Proxmox › Cluster, Ansible › Playbook, …)
+- **Full-text search** — FTS5 searches title, command, description, and tags simultaneously
+- **Favorites** — star frequently used commands, they appear first when the query is empty
+- **Template variables** — commands like `show interfaces {iface}` prompt for values before copying
+- **Copy on Enter** — command lands in clipboard immediately
+- **GUI Manager** — built-in editor to add, edit, duplicate and delete commands (`cv :manage`)
+- **Context menu** — toggle favorite, copy, open vault folder
+- **SQLite backend** — fully editable database, version-controllable, no cloud dependency
+- **156 built-in commands** across Cisco, Linux, Proxmox and Ansible
+
+## Requirements
+
+- [Flow Launcher](https://www.flowlauncher.com/) 1.17+
+- Python 3.10+ — install via:
+  ```
+  winget install Python.Python.3.12 --source winget
+  ```
+
+## Installation
+
+### From GitHub Release (recommended)
+
+1. Download `CommandVault-1.0.0.zip` from [Releases](https://github.com/BossFlap/flow-command-vault/releases)
+2. Extract the folder to `%APPDATA%\FlowLauncher\Plugins\`
+3. Open a terminal inside the extracted folder and run:
+
+```
+python -m pip install -r requirements.txt
+python db_init.py
+```
+
+4. Restart Flow Launcher
+
+### From Source
+
+```bash
+git clone https://github.com/BossFlap/flow-command-vault
+cd flow-command-vault
+
+xcopy /E /I . "%APPDATA%\FlowLauncher\Plugins\CommandVault-1.0.0"
+cd "%APPDATA%\FlowLauncher\Plugins\CommandVault-1.0.0"
+
+pip install -r requirements.txt
+python db_init.py
+```
+
+## Usage
+
+| Query | Result |
+|-------|--------|
+| `cv` | Shows all favorites first |
+| `cv vlan` | All VLAN-related commands |
+| `cv cisco trunk` | Cisco trunk commands |
+| `cv show mac` | Any command matching "show mac" |
+| `cv proxmox ceph` | Ceph-related Proxmox commands |
+| `cv ansible check` | Ansible dry-run commands |
+| `cv :manage` | Open the GUI manager |
+
+**Enter** → copies command to clipboard
+**Ctrl+O** → context menu (favorite, copy, open folder)
+
+### Template variables
+
+Commands containing `{variable}` will prompt for input before copying:
+
+```
+show interfaces {iface}
+→ prompts: "Value for iface"
+→ copies:  show interfaces Gi1/0/1
+```
+
+### GUI Manager
+
+Type `cv :manage` in Flow Launcher to open the built-in editor:
+
+- Add, edit, duplicate and delete commands
+- Search and filter by category
+- Toggle favorites
+- Keyboard shortcuts: `Ctrl+N` add, `Enter` edit, `Del` delete
+
+## Built-in categories
+
+| Category | Subcategories | Commands |
+|----------|---------------|----------|
+| Cisco | VLAN, MAC, ARP, Interfaces, Routing, STP, Port-Channel, ACL, NAT, System | 60+ |
+| Linux | Disk, Network, System, Files, SSH | 40+ |
+| Proxmox | VM, Container, Storage, Cluster, Backup | 30+ |
+| Ansible | Playbook, Ad-hoc, Inventory, Galaxy, Vault | 25+ |
+
+## Adding your own commands
+
+Use the built-in GUI (`cv :manage`) or edit `vault.db` directly with [DB Browser for SQLite](https://sqlitebrowser.org/).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `category` | TEXT | Top-level group (e.g. "Cisco") |
+| `subcategory` | TEXT | Sub-group (e.g. "VLAN") |
+| `title` | TEXT | Display name |
+| `command` | TEXT | The command (use `{var}` for templates) |
+| `description` | TEXT | Short explanation (shown as subtitle) |
+| `tags` | TEXT | Comma-separated keywords |
+| `is_favorite` | INTEGER | 1 = appears first on empty query |
+
+To reset the database to built-in defaults:
+
+```bash
+python db_init.py --reset
+```
+
+## License
+
+MIT — see [LICENSE](LICENSE)

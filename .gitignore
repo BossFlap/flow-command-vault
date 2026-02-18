@@ -1,0 +1,8 @@
+vault.db
+*.db
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+python_path.txt

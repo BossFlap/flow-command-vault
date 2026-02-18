@@ -1,0 +1,13 @@
+{
+  "$schema": "https://www.flowlauncher.com/schemas/plugin.schema.json",
+  "ID": "cv-ristevsk-commandvault-2026",
+  "ActionKeywords": ["cv"],
+  "Name": "Command Vault",
+  "Description": "Search and copy commands from a structured local vault. Supports categories (Cisco, Linux, Proxmox, Ansible), fuzzy search, favorites and templates with variables.",
+  "Author": "Filip Ristevski",
+  "Version": "1.0.0",
+  "Language": "python",
+  "Website": "https://github.com/BossFlap/flow-command-vault",
+  "IcoPath": "Images/icon.png",
+  "ExecuteFileName": "main.py"
+}
