@@ -51,6 +51,18 @@ def _icon(row) -> str:
     return ICON
 
 
+def _db_ready() -> bool:
+    """Return True if the vault database exists and the commands table is accessible."""
+    if not os.path.exists(DB_PATH):
+        return False
+    try:
+        with _db() as con:
+            con.execute("SELECT 1 FROM commands LIMIT 1")
+        return True
+    except sqlite3.Error:
+        return False
+
+
 def _fts_ok(con: sqlite3.Connection) -> bool:
     try:
         con.execute("SELECT 1 FROM commands_fts LIMIT 1")
@@ -236,8 +248,53 @@ def _toggle_favorite(cmd_id: int) -> None:
 class CommandVault(FlowLauncher):
 
     def query(self, query: str) -> list[dict[str, Any]]:
+        q = query.strip()
+
+        # Special command: initialize the database
+        if q in (":init", ":setup", ":initialize"):
+            if _db_ready():
+                return [
+                    {
+                        "Title": "\u2713  Command Vault is already initialized",
+                        "SubTitle": f"Database ready at {DB_PATH}  \u00b7  Use :manage to add commands",
+                        "IcoPath": ICON,
+                        "JsonRPCAction": {
+                            "method": "noop",
+                            "parameters": [],
+                            "dontHideAfterAction": True,
+                        },
+                    }
+                ]
+            return [
+                {
+                    "Title": "\u2699  Initialize Command Vault",
+                    "SubTitle": "Press Enter to create the database and load 150+ built-in commands (Cisco, Linux, Proxmox, Ansible)",
+                    "IcoPath": ICON,
+                    "JsonRPCAction": {
+                        "method": "run_init",
+                        "parameters": [],
+                        "dontHideAfterAction": False,
+                    },
+                }
+            ]
+
+        # Database not yet initialized — guide the user
+        if not _db_ready():
+            return [
+                {
+                    "Title": "\u2699  Command Vault — First-time setup required",
+                    "SubTitle": "Type  cv :init  and press Enter to create the database and load built-in commands",
+                    "IcoPath": ICON,
+                    "JsonRPCAction": {
+                        "method": "noop",
+                        "parameters": [],
+                        "dontHideAfterAction": True,
+                    },
+                }
+            ]
+
         # Special command: open the GUI manager
-        if query.strip() in (":manage", ":manager", ":edit", ":gui"):
+        if q in (":manage", ":manager", ":edit", ":gui"):
             return [
                 {
                     "Title": "Open Command Vault Manager",
@@ -374,6 +431,24 @@ class CommandVault(FlowLauncher):
             [sys.executable, manager],
             creationflags=subprocess.DETACHED_PROCESS,
         )
+
+    def run_init(self) -> None:
+        import db_init as _db_init
+        try:
+            _db_init.init_db(drop_existing=False)
+            try:
+                self.show_msg(
+                    "\u2713  Vault ready!",
+                    "Database created with 150+ built-in commands. Start typing to search.",
+                    ICON,
+                )
+            except Exception:
+                pass
+        except Exception as e:
+            try:
+                self.show_msg("\u2717  Init failed", str(e), ICON)
+            except Exception:
+                pass
 
     def noop(self) -> None:
         pass
