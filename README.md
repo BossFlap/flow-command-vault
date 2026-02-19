@@ -34,10 +34,10 @@ Press your hotkey, type a keyword, and instantly find and copy commands for Cisc
 
 ```
 python -m pip install -r requirements.txt
-python db_init.py
 ```
 
 4. Restart Flow Launcher
+5. Type `cv :init` in Flow Launcher and press **Enter** to create the database and load all built-in commands
 
 ### From Source
 
@@ -49,13 +49,15 @@ xcopy /E /I . "%APPDATA%\FlowLauncher\Plugins\CommandVault-1.0.0"
 cd "%APPDATA%\FlowLauncher\Plugins\CommandVault-1.0.0"
 
 pip install -r requirements.txt
-python db_init.py
 ```
+
+Then restart Flow Launcher and type `cv :init` to initialize the database.
 
 ## Usage
 
 | Query | Result |
 |-------|--------|
+| `cv :init` | Initialize the database and load all built-in commands |
 | `cv` | Shows all favorites first |
 | `cv vlan` | All VLAN-related commands |
 | `cv cisco trunk` | Cisco trunk commands |
