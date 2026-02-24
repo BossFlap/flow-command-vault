@@ -28,7 +28,7 @@ Press your hotkey, type a keyword, and instantly find and copy commands for Cisc
 
 ### From GitHub Release (recommended)
 
-1. Download `CommandVault-1.0.0.zip` from [Releases](https://github.com/BossFlap/flow-command-vault/releases)
+1. Download `CommandVault-1.1.1.zip` from [Releases](https://github.com/BossFlap/flow-command-vault/releases)
 2. Extract the folder to `%APPDATA%\FlowLauncher\Plugins\`
 3. Open a terminal inside the extracted folder and run:
 
@@ -45,8 +45,8 @@ python -m pip install -r requirements.txt
 git clone https://github.com/BossFlap/flow-command-vault
 cd flow-command-vault
 
-xcopy /E /I . "%APPDATA%\FlowLauncher\Plugins\CommandVault-1.0.0"
-cd "%APPDATA%\FlowLauncher\Plugins\CommandVault-1.0.0"
+xcopy /E /I . "%APPDATA%\FlowLauncher\Plugins\CommandVault-1.1.1"
+cd "%APPDATA%\FlowLauncher\Plugins\CommandVault-1.1.1"
 
 pip install -r requirements.txt
 ```
