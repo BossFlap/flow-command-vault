@@ -11,7 +11,14 @@ import os
 import re
 import sqlite3
 import subprocess
+import sys
 from typing import Any
+
+# Bundle dependencies (lib/ folder) so the plugin works with Flow Launcher's
+# embedded Python without requiring a separate pip install step.
+_lib = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib")
+if _lib not in sys.path:
+    sys.path.insert(0, _lib)
 
 from flowlauncher import FlowLauncher  # type: ignore
 

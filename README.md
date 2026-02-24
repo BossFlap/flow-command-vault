@@ -30,14 +30,8 @@ Press your hotkey, type a keyword, and instantly find and copy commands for Cisc
 
 1. Download `CommandVault-1.1.1.zip` from [Releases](https://github.com/BossFlap/flow-command-vault/releases)
 2. Extract the folder to `%APPDATA%\FlowLauncher\Plugins\`
-3. Open a terminal inside the extracted folder and run:
-
-```
-python -m pip install -r requirements.txt
-```
-
-4. Restart Flow Launcher
-5. Type `cv :init` in Flow Launcher and press **Enter** to create the database and load all built-in commands
+3. Restart Flow Launcher
+4. Type `cv :init` in Flow Launcher and press **Enter** to create the database and load all built-in commands
 
 ### From Source
 
